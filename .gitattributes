@@ -1,0 +1,6 @@
+# binary files: never diff or merge as text
+*.xlsx  binary
+*.woff2 binary
+*.png   binary
+# the built app is generated from src/ and the workbook
+/*.html -diff linguist-generated=true

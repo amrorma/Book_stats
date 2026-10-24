@@ -1,0 +1,732 @@
+<title>متصفح القرآن</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+@font-face { font-family: "Uthmani Hafs"; src: local("KFGQPC Uthmanic Script HAFS"), url(data:font/woff2;base64,__FONT__) format("woff2"); font-display: swap; }
+/* Layout: a floating search line over one large flower (root at the centre, word forms as petals, the 114 surahs as the outer ring); the verses open beside it, or below it on a phone */
+:root {
+  --bg: #eaf4fb; --panel: #ffffff; --ink: #1d2b1f; --muted: #4f6152; --rule: #cfe0ea; --uth-ink: #1f4f9e;
+  --petal: #2e7d32; --pick: #c2410c;
+  --mecca: #8bc34a; --medina: #2e7d32; --tick: #b45309; --core-1: #7a4a24; --core-2: #3b2412; --core-ink: #fff4d6; --seed: #f2c14e; --core-word: #ffc72c;
+  --font-ui: "IBM Plex Sans Arabic", "Noto Sans Arabic", "Geeza Pro", Tahoma, sans-serif;
+  --font-text: "Amiri", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  --font-uth: "Uthmani Hafs", "KFGQPC Uthmanic Script HAFS", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1a24; --panel: #15232f; --ink: #eef4ea; --muted: #a3b8aa; --rule: #24384a; --uth-ink: #8db7f2;
+    --petal: #7cc47f; --pick: #fb923c; --mecca: #7cb342; --medina: #2f8f3a; --tick: #fbbf24; --core-1: #7a4a24; --core-2: #3b2412; --core-ink: #fff4d6; --seed: #f2c14e; --core-word: #ffc72c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1a24; --panel: #15232f; --ink: #eef4ea; --muted: #a3b8aa; --rule: #24384a; --uth-ink: #8db7f2;
+  --petal: #7cc47f; --pick: #fb923c; --mecca: #7cb342; --medina: #2f8f3a; --tick: #fbbf24; --core-1: #7a4a24; --core-2: #3b2412; --core-ink: #fff4d6; --seed: #f2c14e; --core-word: #ffc72c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.6; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 32px;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
+.app { max-width: 1320px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.app > * { min-width: 0; }
+
+/* top line */
+.top { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
+.brand { font-family: var(--font-text); font-size: 26px; font-weight: 700; margin: 0; line-height: 1.2; }
+.brand small { display: inline-block; }
+.brand small { font-family: var(--font-ui); font-size: 13px; font-weight: 400; color: var(--muted); margin-inline-start: 10px; }
+.searchrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1 1 340px; max-width: 640px; min-width: 0; }
+.mode { display: inline-flex; border: 1.5px solid var(--rule); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.mode button { border: 0; background: transparent; padding: 6px 16px; color: var(--muted); font-weight: 600; }
+.mode button[aria-pressed="true"] { background: var(--petal); color: var(--panel); }
+.search { position: relative; }
+.search .open { background: transparent !important; color: var(--muted) !important; padding: 6px 10px !important; font-size: 15px; }
+.suggest { position: absolute; top: calc(100% + 8px); right: 0; left: 0; z-index: 25; background: var(--panel); border: 1px solid var(--rule); border-radius: 16px;
+  box-shadow: 0 14px 34px rgb(0 0 0 / .16); max-height: min(420px, 60vh); overflow: auto; overscroll-behavior: contain; }
+.suggest .letters { position: sticky; top: 0; background: var(--panel); display: flex; flex-wrap: wrap; gap: 3px; padding: 8px 10px; border-bottom: 1px solid var(--rule); z-index: 1; }
+.suggest .letters button { border: 1px solid var(--rule); background: transparent; border-radius: 6px; min-width: 30px; height: 30px; padding: 0 4px; font-family: var(--font-text); font-size: 17px; line-height: 1; color: var(--ink); }
+.suggest .letters button[aria-pressed="true"] { background: var(--petal); border-color: var(--petal); color: var(--panel); }
+.suggest ul { list-style: none; margin: 0; padding: 4px; }
+.suggest li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 12px; border-radius: 8px; cursor: pointer; }
+.suggest li[aria-selected="true"], .suggest li:hover { background: #fff3c4; color: #3b2412; }
+.suggest li .lb { font-family: var(--font-text); font-size: 20px; }
+.suggest li .lb b { color: var(--pick); }
+.suggest li .ct { font-family: var(--font-text); font-size: 15px; color: var(--muted); }
+.suggest .note { padding: 6px 14px 10px; font-size: 12.5px; color: var(--muted); margin: 0; }
+.search { display: flex; flex: 1 1 260px; min-width: 0; max-width: 520px; background: var(--panel); border: 1.5px solid var(--rule); border-radius: 999px; padding: 4px; }
+.search:focus-within { border-color: var(--petal); }
+.search input { flex: 1; min-width: 0; border: 0; background: transparent; font-family: var(--font-text); font-size: 21px; padding: 2px 14px; outline: none; }
+.search button { border: 0; background: var(--petal); color: var(--panel); border-radius: 999px; padding: 6px 20px; font-weight: 600; }
+.tries { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.tries button { border: 1px solid var(--rule); background: transparent; border-radius: 999px; padding: 0 12px; font-family: var(--font-text); font-size: 17px; }
+.tries button:hover { border-color: var(--petal); }
+.msg { margin: 0; font-size: 13.5px; color: var(--muted); min-height: 1.5em; }
+.msg.err { color: #c64545; }
+
+/* stage */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1040px) { .stage { grid-template-columns: minmax(0, 1fr) 390px; } }
+.flower-box { position: relative; min-width: 0; }
+svg#flower { display: block; width: 100%; height: auto; max-height: calc(100vh - 40px); margin: 0 auto; user-select: none; -webkit-user-select: none; overflow: visible; }
+.petal { stroke-width: 1.5; transform-box: view-box; transition: transform .7s cubic-bezier(.2,.8,.2,1), opacity .3s; cursor: pointer; }
+.petal.dim { opacity: .28; }
+.petal:focus { outline: none; } .petal:focus-visible { stroke: var(--pick); stroke-width: 5; }
+.petal.on { stroke: var(--pick); stroke-width: 4.5; }
+.petal.outer { stroke-width: .8; } .petal.outer.on { stroke-width: 2.5; }
+.plabel { font-family: var(--font-text); fill: var(--ink); text-anchor: middle; dominant-baseline: middle; pointer-events: none; transition: opacity .4s; }
+.pnum { font-family: var(--font-text); font-weight: 700; fill: #3b2412; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.pnum.dim { opacity: .3; }
+.olabel { font-family: var(--font-text); font-weight: 700; fill: #3b2412; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.olabel.dim { opacity: .3; }
+.thread { fill: none; stroke-linecap: round; opacity: .07; transition: opacity .3s, stroke .3s; pointer-events: none; }
+.thread.dim { opacity: .03; } .thread.on { opacity: .95; }
+.arc { cursor: pointer; transition: opacity .3s; }
+.arc.dim { opacity: .35; } .arc.on { stroke: var(--ink); stroke-width: 2; }
+.ticks { stroke: var(--tick); stroke-width: 1.4; pointer-events: none; }
+.ticks.pick { stroke: var(--ink); stroke-width: 2.2; }
+.center-word { font-family: var(--font-text); font-weight: 700; fill: var(--core-word); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--core-2); stroke-width: 5px; }
+.seeds { fill: var(--seed); pointer-events: none; }
+.vein { fill: none; stroke-linecap: round; pointer-events: none; opacity: .4; }
+.growp { animation: growp .8s cubic-bezier(.2,.8,.2,1) both; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes growp { from { transform: scale(.1); opacity: 0; } to { transform: none; opacity: 1; } }
+.center-sub { font-family: var(--font-text); fill: var(--core-ink); text-anchor: middle; dominant-baseline: hanging; }
+.ring-label { font-family: var(--font-ui); fill: var(--muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.grow { animation: grow .8s cubic-bezier(.2,.8,.2,1) both; transform-box: view-box; transform-origin: 500px 500px; }
+@keyframes grow { from { transform: scale(.15); opacity: 0; } to { transform: none; opacity: 1; } }
+.draw { stroke-dasharray: 1200; animation: draw 1.4s ease-out both; }
+@keyframes draw { from { stroke-dashoffset: 1200; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .grow, .growp, .draw { animation: none; } .petal { transition: none; } }
+.how { font-size: 12.5px; color: var(--muted); max-width: 70ch; margin: 4px auto 0; text-align: center; }
+
+/* verses drawer */
+.drawer { background: var(--panel); border: 1px solid var(--rule); border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+@media (min-width: 1040px) { .drawer { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; } }
+.dtitle { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.5; }
+.dtitle .w { font-family: var(--font-text); font-size: 1.45em; color: var(--pick); }
+.dsub { margin: -6px 0 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; justify-self: start; }
+.seg button { border: 0; background: var(--panel); padding: 3px 12px; font-size: 13px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--petal); color: var(--panel); }
+.reset { justify-self: start; border: 1px solid var(--rule); background: transparent; border-radius: 999px; padding: 1px 12px; font-size: 13px; color: var(--muted); }
+ol.verses { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sgroup { font-weight: 600; font-size: 13.5px; color: var(--petal); margin-top: 8px; }
+.verse { border-top: 1px solid var(--rule); padding-top: 8px; display: grid; gap: 2px; min-width: 0; }
+.verse .ref { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.verse .txt { font-family: var(--font-text); font-size: 21px; line-height: 1.95; overflow-wrap: anywhere; }
+.verse .txt.uth { font-family: var(--font-uth); font-size: 24px; line-height: 2.15; }
+.verse .txt.uth.pair { color: var(--uth-ink); }   /* blue Uthmani line when both scripts are shown */
+.verse mark { background: transparent; color: var(--pick); font-weight: 700; cursor: help; }
+.more { justify-self: center; border: 1px solid var(--petal); color: var(--petal); background: var(--panel); border-radius: 8px; padding: 5px 16px; }
+
+/* tooltip + word card */
+.tip { position: fixed; z-index: 30; pointer-events: none; background: var(--ink); color: var(--panel); font-size: 13px; padding: 6px 11px; border-radius: 8px; max-width: min(340px, calc(100vw - 24px)); line-height: 1.55; }
+.tip .tl { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgb(255 255 255 / .25); font-family: var(--font-text); font-size: 15px; line-height: 1.6; }
+.tip b { font-family: var(--font-text); font-size: 18px; font-weight: 700; }
+.card { position: fixed; z-index: 30; width: min(390px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / .2); padding: 12px 14px; display: grid; gap: 8px; pointer-events: none; direction: rtl; }
+.card .words { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.card .w1 { font-family: var(--font-text); font-size: 27px; font-weight: 700; line-height: 1.3; }
+.card .w2 { font-family: var(--font-uth); font-size: 27px; line-height: 1.5; }
+.card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.card dt { color: var(--muted); } .card dd { margin: 0; }
+footer { color: var(--muted); font-size: 12px; }
+</style>
+
+<div id="nojs" style="margin:16px auto;max-width:560px;padding:14px 18px;border-radius:14px;background:#fff3c4;color:#3b2412;font:16px/1.7 Tahoma,sans-serif;text-align:center" dir="rtl" lang="ar">
+  هذه المعاينة لا تشغّل الصفحة. افتح الملف في متصفح مثل Safari أو Chrome: اضغط زر المشاركة ثم «فتح في…» واختر المتصفح.
+</div>
+<div class="app" dir="rtl" lang="ar">
+  <div class="top">
+    <h1 class="brand">متصفح القرآن<small>كل جذر وكلمة في القرآن تتفتّح بصيغها وسورها</small></h1>
+    <div class="searchrow">
+    <span class="mode" role="group" aria-label="ابحث عن">
+      <button type="button" id="mRoot" aria-pressed="true">جذر</button>
+      <button type="button" id="mWord" aria-pressed="false">كلمة</button>
+    </span>
+    <form class="search" id="form" role="search" autocomplete="off">
+      <input type="search" id="q" placeholder="اكتب جذرًا، مثل: رحم" aria-label="جذر أو كلمة" dir="rtl" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugList">
+      <button type="button" class="open" id="openList" aria-label="اعرض القائمة الأبجدية" title="القائمة الأبجدية">▾</button>
+      <button type="submit">تفتّح</button>
+      <div class="suggest" id="suggest" hidden>
+        <div class="letters" id="letters" role="group" aria-label="الحرف الأول"></div>
+        <ul id="sugList" role="listbox" aria-label="الاقتراحات"></ul>
+        <p class="note" id="sugNote"></p>
+      </div>
+    </form>
+    </div>
+  </div>
+  <div class="tries"><span>جرّب:</span><span id="tries" class="tries"></span></div>
+  <p class="msg" id="msg" role="status"></p>
+
+  <div class="stage">
+    <div class="flower-box">
+      <svg id="flower" viewBox="0 0 1000 1000" role="img" aria-labelledby="flowerDesc">
+        <desc id="flowerDesc">في الوسط الجذر، وحوله صيغ كلماته على شكل بتلات بحسب عدد ورودها، وفي الحلقة الخارجية سور القرآن بترتيب المصحف.</desc>
+        <defs>
+          <radialGradient id="petalFill" cx="500" cy="500" r="420" gradientUnits="userSpaceOnUse">
+            <stop offset="0.1" style="stop-color:var(--petal-2)"></stop>
+            <stop offset="0.85" style="stop-color:var(--petal)"></stop>
+          </radialGradient>
+        </defs>
+        <radialGradient id="core" cx="0.45" cy="0.42" r="0.65"><stop offset="0" style="stop-color:var(--core-1)"></stop><stop offset="1" style="stop-color:var(--core-2)"></stop></radialGradient>
+        <g id="pdefs"></g>
+        <g id="gRing"></g><g id="gThreads"></g><g id="gPetals"></g><g id="gNums"></g><g id="gOLabels"></g><g id="gLabels"></g><g id="gCenter"></g>
+      </svg>
+      <div style="text-align:center;margin-top:6px"><button class="reset" type="button" id="fold" hidden>اجمع البتلات الصغيرة في بتلة واحدة</button></div>
+      <p class="how" id="how">البتلات: في البحث بالجذر هي كلماته كما في الجدول بحركاتها، وفي البحث بالكلمة هي السور التي وردت فيها؛ وطول البتلة بقدر عدد المواضع. الحلقة: سور القرآن من الفاتحة أعلى الدائرة إلى الناس، المكية بالأخضر الفاتح والمدنية بالأخضر الداكن. الخيوط تصل كل صيغة بالسور التي وردت فيها.</p>
+    </div>
+
+    <aside class="drawer" aria-live="polite">
+      <h2 class="dtitle" id="dTitle"></h2>
+      <p class="dsub" id="dSub"></p>
+      <button class="reset" type="button" id="reset" hidden>اعرض كل مواضع الجذر</button>
+      <span class="seg" role="group" aria-label="طريقة كتابة النص">
+        <button type="button" id="tImlai" aria-pressed="true">الإملاء الحديث</button>
+        <button type="button" id="tUth" aria-pressed="false">الرسم العثماني</button>
+        <button type="button" id="tBoth" aria-pressed="false">كلاهما</button>
+      </span>
+      <ol class="verses" id="verses"></ol>
+      <button class="more" type="button" id="more" hidden></button>
+    </aside>
+  </div>
+  <footer id="foot"></footer>
+  <div class="tip" id="tip" hidden></div>
+  <div class="card" id="card" hidden></div>
+</div>
+
+<script type="application/json" id="qdata">__DATA__</script>
+<script>
+(() => {
+"use strict";
+document.getElementById("nojs").remove();
+// ---------- data ----------
+const D = JSON.parse(document.getElementById("qdata").textContent);
+const b64u16 = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Uint16Array(u.buffer); };
+const N = D.n, FORMS = D.forms, ROOTS = D.roots, TF = b64u16(D.tokForm), TR = b64u16(D.tokRoot);
+const VS = D.verseStart, PS = D.pageStart, JS = D.juzStart, SUR = D.surahs, NV = VS.length;
+const UV = D.uVerses, UA = b64u16(D.uA), UB = b64u16(D.uB);
+const ub = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= x) lo = m + 1; else hi = m; } return lo; };
+const verseOf = t => ub(VS, t) - 1;
+const surahTok = SUR.map((s, i) => [VS[s[2]], i + 1 < SUR.length ? VS[SUR[i + 1][2]] : N]);
+const tokSurah = new Uint8Array(N); surahTok.forEach(([a, b], i) => tokSurah.fill(i, a, b));
+const refOf = t => { const v = verseOf(t), s = tokSurah[t]; return { v, s, ayah: v - SUR[s][2] + 1, page: ub(PS, t), juz: ub(JS, t) }; };
+const NOSPACE = new Set([FORMS.indexOf("وَ"), FORMS.indexOf("أَوَ")].filter(i => i >= 0));
+const PAUSE = /[ۖ-ۛ۞۩]/g;
+const uWord = p => UV[verseOf(p)].slice(UA[p], UB[p]).replace(PAUSE, "");
+const ar = n => Number(n).toLocaleString("ar-EG");
+const sName = s => SUR[s][0];
+// Arabic counted noun: موضع واحد، موضعان، ٣–١٠ مواضع، ١١+ موضعًا
+const surahsN = n => n === 1 ? "سورة واحدة" : n === 2 ? "سورتين" : n % 100 >= 3 && n % 100 <= 10 ? `${ar(n)} سور` : `${ar(n)} سورة`;
+const ayatN = n => n === 1 ? "آية واحدة" : n === 2 ? "آيتين" : n % 100 >= 3 && n % 100 <= 10 ? `${ar(n)} آيات` : `${ar(n)} آية`;
+// names of the surahs in which a set of positions occurs, in mushaf order, with the count when it is more than one
+const surahList = toks => { const c = new Map(); for (const p of toks) c.set(tokSurah[p], (c.get(tokSurah[p]) || 0) + 1);
+  const items = [...c].sort((a, b) => a[0] - b[0]).map(([s, k]) => sName(s) + (k > 1 ? ` (${ar(k)})` : "")), MAXN = 40;
+  return items.length > MAXN ? items.slice(0, MAXN).join("، ") + ` وغيرها (${ar(items.length - MAXN)})` : items.join("، "); };
+const occ = n => n === 1 ? "موضع واحد" : n === 2 ? "موضعان" : n % 100 >= 3 && n % 100 <= 10 ? `${ar(n)} مواضع` : `${ar(n)} موضعًا`;
+const formCount = new Uint32Array(FORMS.length), occRank = new Uint32Array(N), rootFreq = new Uint32Array(ROOTS.length);
+for (let i = 0; i < N; i++) { occRank[i] = ++formCount[TF[i]]; rootFreq[TR[i]]++; }
+const rootForms = new Map(); for (let i = 0; i < N; i++) { let s = rootForms.get(TR[i]); if (!s) rootForms.set(TR[i], s = new Set()); s.add(TF[i]); }
+const firstLetter = w => { let o = w[0]; for (const ch of w.slice(1)) { if (/[ً-ْٰ]/.test(ch)) o += ch; else break; } return o; };
+
+// ---------- normalization ----------
+const HARAKAT = /[ً-ٰٟـۖ-ۭ]/g;
+const normWord = s => s.replace(HARAKAT, "").replace(/[أإآٱ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, "");
+const normRoot = s => s.replace(HARAKAT, "").replace(/[أإآؤئ]/g, "ء").replace(/\s+/g, "");
+const FORM_N = FORMS.map(normWord);
+const ROOT_N = new Map(); ROOTS.forEach((r, i) => { const k = normRoot(r); if (!ROOT_N.has(k)) ROOT_N.set(k, []); ROOT_N.get(k).push(i); });
+const COLL = new Intl.Collator("ar");
+// alphabetical lists for the dropdown: every root, and every word written without diacritics
+const ROOT_ITEMS = [...ROOTS.keys()].filter(i => rootFreq[i] > 0).map(i => ({ label: ROOTS[i], key: normRoot(ROOTS[i]), n: rootFreq[i] }))
+  .sort((a, b) => COLL.compare(a.key, b.key));
+const WORD_ITEMS = FORMS.map((f, i) => ({ label: f, fid: i, key: normWord(f), n: formCount[i] }))      // every word exactly as written in the table
+  .sort((a, b) => COLL.compare(a.key, b.key) || COLL.compare(a.label, b.label));
+// exact comparison of vowelled words, independent of the order of the marks
+const canon = w => w.replace(/[\u0640]/g, "").replace(/([^\u064B-\u0652\u0670])([\u064B-\u0652\u0670]+)/g, (m, l, mk) => l + [...mk].sort().join(""));
+const FORM_C = FORMS.map(canon);
+const PREFIXES = ["", "ال", "بال", "فال", "كال", "لل", "ف", "ب", "ل", "ك", "فب", "فل"];
+
+// ---------- geometry ----------
+const C = 500, R_RING = 448, R0 = 84;   // larger ring than the main app: more room for the small petals
+let LABEL_LIMIT = R_RING - 6, outerFont = 12;            // labels of the inner ring stay inside this radius (outer rings start beyond it)
+const pt = (t, r) => [C - r * Math.sin(t), C - r * Math.cos(t)];          // t = 0 at the top, increasing towards the left
+const tOfTok = p => 2 * Math.PI * (p + .5) / N;
+const f1 = x => x.toFixed(1);
+
+// ---------- state ----------
+let expanded = false;   // false: the rarer words sit in one dashed petal; true: they unfold into the outer rows
+let root = null, groups = [], pick = null, pickSurah = null, textMode = "imlai", shown = 20;
+const svg = document.getElementById("flower"), gRing = document.getElementById("gRing"), gThreads = document.getElementById("gThreads"),
+      gPetals = document.getElementById("gPetals"), gNums = document.getElementById("gNums"), gOLabels = document.getElementById("gOLabels"), gLabels = document.getElementById("gLabels"), gCenter = document.getElementById("gCenter");
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+// the surah ring never changes: draw it once
+function drawRing() {
+  const GAP = 0.0025;
+  SUR.forEach((s, i) => {
+    const [a, b] = surahTok[i], t0 = 2 * Math.PI * a / N + GAP, t1 = 2 * Math.PI * b / N - GAP;
+    const r1 = R_RING, r2 = R_RING + 18, large = t1 - t0 > Math.PI ? 1 : 0;
+    const [x1, y1] = pt(t0, r1), [x2, y2] = pt(t1, r1), [x3, y3] = pt(t1, r2), [x4, y4] = pt(t0, r2);
+    const d = `M${f1(x1)},${f1(y1)} A${r1},${r1} 0 ${large} 0 ${f1(x2)},${f1(y2)} L${f1(x3)},${f1(y3)} A${r2},${r2} 0 ${large} 1 ${f1(x4)},${f1(y4)} Z`;
+    const arc = el("path", { d, class: "arc", style: `fill:var(${s[1] === "m" ? "--mecca" : "--medina"})`, "data-s": i }, gRing);
+    arc.addEventListener("pointerenter", e => showTip(e, `<b>${sName(i)}</b><br>السورة ${ar(i + 1)} | ${s[1] === "m" ? "مكية" : "مدنية"}${root ? ` | ${ar(countIn(i))} من المواضع` : ""}`));
+    arc.addEventListener("pointerleave", hideTip);
+    arc.addEventListener("click", () => { pickSurah = pickSurah === i ? null : i; pick = null; highlight(); renderVerses(); });
+  });
+  el("path", { id: "ticks", class: "ticks", d: "" }, gRing); el("path", { id: "ticksPick", class: "ticks pick", d: "" }, gRing);
+}
+const rootTokens = () => root.tokens;
+const countIn = s => { let n = 0; for (const p of root.tokens) if (tokSurah[p] === s) n++; return n; };
+
+// ---------- bloom a root ----------
+const smallScreen = () => svg.getBoundingClientRect().width < 520;
+function maxPetals() { return smallScreen() ? 8 : 22; }
+function bloom(rid, preferForms) {
+  const toks = []; for (let i = 0; i < N; i++) if (TR[i] === rid) toks.push(i);
+  bloomTokens({ kind: "root", id: rid, label: ROOTS[rid], tokens: toks }, preferForms);
+}
+function bloomWord(fid, preferSurah) {                       // one exact word of the table: its petals are the surahs it occurs in
+  const toks = []; for (let i = 0; i < N; i++) if (TF[i] === fid) toks.push(i);
+  bloomTokens({ kind: "word", fid, label: FORMS[fid], tokens: toks }, null, preferSurah);
+}
+function bloomTokens(obj, preferForms, preferSurah) {
+  const toks = obj.tokens, bySurah = obj.kind === "word";
+  // root: one petal per word exactly as written (قَلْبٌ and قَلْبِ are different words); word: one petal per surah
+  const by = new Map();
+  for (const p of toks) { const k = bySurah ? tokSurah[p] : TF[p]; let g = by.get(k); if (!g) by.set(k, g = { key: k, forms: new Map(), tokens: [] }); g.tokens.push(p); g.forms.set(TF[p], (g.forms.get(TF[p]) || 0) + 1); }
+  let gs = [...by.values()].sort((a, b) => b.tokens.length - a.tokens.length);
+  const cap = maxPetals();
+  if (!expanded && gs.length > cap) { const rest = gs.slice(cap - 1), other = { key: "_other", other: true, forms: new Map(), tokens: [] }; rest.forEach(g => { other.tokens.push(...g.tokens); g.forms.forEach((n, f) => other.forms.set(f, n)); }); other.tokens.sort((a, b) => a - b); other.count = rest.length; gs = gs.slice(0, cap - 1).concat(other); }
+  gs.forEach(g => { g.label = g.other ? `${bySurah ? "سور أخرى" : "صيغ أخرى"} (${ar(g.count)})` : bySurah ? sName(g.key) : FORMS[g.key]; });
+  root = obj; groups = gs; pickSurah = null; shown = 20;
+  pick = preferForms ? gs.find(g => [...g.forms.keys()].some(f => preferForms.has(f))) || null : preferSurah != null ? gs.find(g => g.key === preferSurah) || null : null;
+  drawFlower(); highlight(); renderVerses();
+}
+function drawFlower() {
+  gThreads.innerHTML = gPetals.innerHTML = gNums.innerHTML = gOLabels.innerHTML = gLabels.innerHTML = gCenter.innerHTML = "";
+  const n = groups.length, max = groups[0].tokens.length, step = 2 * Math.PI / n;
+  const LMIN = 70, LMAX = 238, dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light" || document.documentElement.dataset.theme === "dark";
+  const defs = document.getElementById("pdefs"); defs.innerHTML = "";
+  // petals take the four Google colours in turn: [base, deep, light centre]
+  // three sunflower golds in turn: [base, deep edge, pale base]
+  // the three sunflower golds of the main app — [base, deep edge, pale base, text]
+  const GC = [["#FFC72C", "#D98E04", "#FFF3C4", "#3b2412"], ["#FF9F1C", "#C2570C", "#FFE2B8", "#3b2412"], ["#FFDA45", "#D9A400", "#FFF7D6", "#3b2412"]];
+  // plum autumn shades for the rarer words: the bundle petal and, once unfolded, their own petals
+  const PLUM = [["#9B5A86", "#6E3460", "#EBD3E3", "#ffffff"], ["#B06F98", "#7D4A72", "#F1DEEB", "#ffffff"], ["#7E4A78", "#55284F", "#DCC3D8", "#ffffff"]];
+  const other3 = (a, b) => [0, 1, 2].find(c => c !== a && c !== b);   // a shade that differs from both neighbours
+  // ---- layout: the most frequent words form the labelled inner ring; every remaining word gets a petal in the outer rings
+  const small = smallScreen(), K0 = Math.min(n, maxPetals()), inner = groups.slice(0, K0), outer = groups.slice(K0);
+  const IN_LMIN = 50, IN_LMAX = outer.length ? (small ? 84 : 96) : 238;
+  const OUT_START = R0 + IN_LMAX + (small ? 78 : 52), OUT_END = R_RING - 6;     // inner tips + room for their labels
+  LABEL_LIMIT = outer.length ? OUT_START - 4 : R_RING - 6;
+  const stepIn = 2 * Math.PI / K0, maxIn = Math.max(...inner.filter(g => !g.other).map(g => g.tokens.length));
+  const lenOf = c => IN_LMIN + (IN_LMAX - IN_LMIN) * Math.sqrt(Math.min(1, c / maxIn));
+  inner.forEach((g, i) => {
+    g.ring = 0; g.t = i * stepIn; g.b0 = R0 - 4; g.len = g.other ? lenOf(inner[Math.floor((inner.length - 1) / 2)].tokens.length) : lenOf(g.tokens.length);   // the bundle petal gets a middle length
+
+    g.w = Math.min(46, Math.max(10, (R0 + g.len / 2) * stepIn * 0.42)); g.delay = ((K0 - i) % K0) * 45;
+    g.ci = i % 3; if (i === K0 - 1 && K0 > 1 && g.ci === 0) g.ci = other3(0, (i - 1) % 3);
+  });
+  const rings = [];
+  if (outer.length) {
+    const meas = el("text", { class: "olabel", "font-size": 100, x: -9999, y: -9999 }, gOLabels);
+    outer.forEach(g => { meas.textContent = g.label; g.tw = Math.max(meas.getComputedTextLength(), meas.getBBox().width) / 100; });   // drawn width, diacritics included
+    meas.remove();
+    const M = outer.length, maxTw = Math.max(...outer.map(g => g.tw));
+    // every small petal has the same width and length, and every label the same font size F;
+    // a petal is 1.75·F wide and long enough for the longest word; find the largest F that fits all words in at most three rows
+    // small petals have the core petal's shape; a label of size F needs a petal 2·F wide and twice as long as the label
+    const minRows = M >= 45 ? 3 : 1;   // long lists always get three rows
+    const plan = (F, maxRows) => {
+      const slot = F * (small ? 1.95 : 1.75), h = maxTw * F / (small ? .52 : .56) + 4, rows = [];   // tall diacritics need a little more width on small screens
+      let r = OUT_START, left = M;
+      while (left > 0 || rows.length < minRows) {
+        if (rows.length === Math.max(maxRows, minRows) || r + h > OUT_END) return null;
+        const cap = Math.floor(2 * Math.PI * (r + h / 2) / slot); rows.push({ r, cap }); left -= Math.min(cap, left); r += h;
+      }
+      return { F, slot, h, rows };
+    };
+    const FMAX = small ? 34 : 16, OUT_FRAC = .8;   // a label may cover 80% of its petal's length   // upper limit, so a short list of small petals stays modest
+    let best = null;
+    for (const maxRows of [3, 4, 5, 6]) {
+      let lo = 2, hi = FMAX; if (!plan(lo, maxRows)) continue;
+      best = plan(lo, maxRows);
+      for (let it = 0; it < 30; it++) { const mid = (lo + hi) / 2, pl = plan(mid, maxRows); if (pl) { best = pl; lo = mid; } else hi = mid; }
+      const top = plan(FMAX, maxRows); if (top) best = top;
+      break;
+    }
+    // the plan fixes how many rows there are; the petals then grow to fill the band between the inner labels and the ring
+    const nR = best.rows.length, h = (OUT_END - OUT_START) / nR; best.rows.forEach((row, k) => { row.r = OUT_START + k * h; });
+    // spread the words over the rows in proportion to each row's room, most frequent words in the inner row
+    const caps = best.rows.map(r => r.cap), tot = caps.reduce((a, b) => a + b, 0);
+    const counts = caps.map(c => Math.floor(M * c / tot)); let rest = M - counts.reduce((a, b) => a + b, 0);
+    for (let k = 0; rest > 0; k = (k + 1) % counts.length) if (counts[k] < caps[k]) { counts[k]++; rest--; }
+    // one width for every small petal: as wide as the most crowded row allows, but still petal-shaped
+    const W = Math.min(h * .3, ...counts.map((c, k) => c ? Math.PI * (best.rows[k].r + h / 2) / c * .8 : Infinity));
+    const F = Math.min(FMAX, (h - 4) * OUT_FRAC / maxTw, W * .8); outerFont = F;   // one font size for all labels
+    let k0 = 0;
+    counts.forEach((cnt, k) => {
+      const items = outer.slice(k0, k0 + cnt); k0 += cnt; if (!items.length) return;
+      const step = 2 * Math.PI / items.length, b0 = best.rows[k].r + 2;
+      items.forEach((g, j) => {
+        g.ring = k + 1; g.t = (j + (k % 2 ? .5 : 0)) * step; g.b0 = b0; g.len = h - 4; g.font = F;
+        g.ci = (j + 2 * k) % 3; if (j === items.length - 1 && items.length > 1 && g.ci === (2 * k) % 3) g.ci = other3((2 * k) % 3, (j - 1 + 2 * k) % 3);
+        g.w = W; g.delay = 450 + k * 220 + ((items.length - j) % items.length) * 6;
+      });
+      rings.push({ n: items.length, hi: items[0].tokens.length, lo: items[items.length - 1].tokens.length });
+    });
+  }
+  const what = root.kind === "root" ? "صيغة" : "سورة";
+  document.getElementById("how").textContent = outer.length
+    ? `الحلقة الداخلية: أكثر ${ar(K0)} ${what} ورودًا، باسمها وعدد مواضعها. الحلقات الخارجية (${ar(rings.length)}): بقية ${root.kind === "root" ? "الصيغ" : "السور"} وعددها ${ar(outer.length)}، من الأكثر ورودًا في الداخل إلى الأقل في الخارج (${rings.map(r => `${ar(r.n)} بتلة: ${r.hi === r.lo ? ar(r.hi) : ar(r.hi) + "–" + ar(r.lo)}`).join("، ")}). مرّر المؤشر فوق بتلة أو اضغط عليها لمعرفة عددها وسورها وعرض آياتها. على الهاتف قرّب بإصبعين لقراءة الأسماء الصغيرة.`
+    : groups.some(g => g.other) ? `البتلة البنفسجية «${groups.find(g => g.other).label}» تجمع ${root.kind === "root" ? "الصيغ" : "السور"} الأقل ورودًا. اضغط عليها لعرضها كلها في حلقات حول الزهرة.`
+    : `كل ${root.kind === "root" ? "الصيغ" : "السور"} (${ar(n)}) معروضة بأسمائها في حلقة واحدة.`;
+  document.getElementById("fold").hidden = !outer.length;
+  groups.forEach((g, i) => {
+    const isIn = g.ring === 0, w = g.w, b0 = g.b0, L = isIn ? g.len + 4 : g.len;
+    if (!isIn) {   // label written along the outer petal, turned so it is never upside down
+      const [lx, ly] = pt(g.t, b0 + L * .47); let dg = Math.atan2(-Math.cos(g.t), -Math.sin(g.t)) * 180 / Math.PI; if (dg > 90) dg -= 180; if (dg < -90) dg += 180;
+      const og = el("g", { class: "grow", style: `animation-delay:${g.delay + 150}ms` }, gOLabels);
+      const ol = el("text", { x: f1(lx), y: f1(ly), class: "olabel", "font-size": f1(g.font), style: `fill:${g.ink}`, transform: `rotate(${f1(dg)} ${f1(lx)} ${f1(ly)})`, "data-i": i }, og); ol.textContent = g.label;
+      { const bb = ol.getBBox(); ol.setAttribute("y", f1(ly - (bb.y + bb.height / 2 - ly))); }   // centre the glyphs on the petal's axis
+    }
+    const [base, deep, light, ink] = g.other ? PLUM[0] : GC[g.ci]; g.color = base; g.edge = deep; g.text = dark ? base : deep; g.ink = ink;
+    const s0 = b0 / (b0 + L), gr = el("radialGradient", { id: "pg" + i, cx: 0, cy: 0, r: f1(b0 + L), gradientUnits: "userSpaceOnUse" }, defs);
+    el("stop", { offset: s0.toFixed(3), style: `stop-color:${light}` }, gr);
+    el("stop", { offset: (s0 + (1 - s0) * (isIn ? .55 : .22)).toFixed(3), style: `stop-color:${base}` }, gr);
+    if (!isIn) el("stop", { offset: (s0 + (1 - s0) * .82).toFixed(3), style: `stop-color:${base}` }, gr);   // outer petals keep their base colour behind the label
+    el("stop", { offset: "1", style: `stop-color:${deep}` }, gr);
+    const deg = -g.t * 180 / Math.PI;
+    const pg = el("g", { transform: `translate(${C} ${C}) rotate(${f1(deg)})` }, gPetals);
+    // inner petals: broad and curved; outer petals: long with straight sides (sunflower ray petals), so a label fits along them
+    const shape = true
+      ? `M0,${f1(-b0)} C${f1(w * .9)},${f1(-(b0 + L * .16))} ${f1(w * 1.12)},${f1(-(b0 + L * .58))} 0,${f1(-(b0 + L))} C${f1(-w * 1.12)},${f1(-(b0 + L * .58))} ${f1(-w * .9)},${f1(-(b0 + L * .16))} 0,${f1(-b0)}Z`
+      : `M0,${f1(-b0)} C${f1(w * .8)},${f1(-b0)} ${f1(w)},${f1(-(b0 + L * .06))} ${f1(w)},${f1(-(b0 + L * .14))} L${f1(w)},${f1(-(b0 + L * .78))} C${f1(w)},${f1(-(b0 + L * .9))} ${f1(w * .45)},${f1(-(b0 + L * .97))} 0,${f1(-(b0 + L))} C${f1(-w * .45)},${f1(-(b0 + L * .97))} ${f1(-w)},${f1(-(b0 + L * .9))} ${f1(-w)},${f1(-(b0 + L * .78))} L${f1(-w)},${f1(-(b0 + L * .14))} C${f1(-w)},${f1(-(b0 + L * .06))} ${f1(-w * .8)},${f1(-b0)} 0,${f1(-b0)}Z`;
+    const petal = el("path", { d: shape, class: "petal growp" + (isIn ? "" : " outer"), style: `animation-delay:${g.delay}ms;fill:url(#pg${i});stroke:${g.edge}`, tabindex: 0, role: "button", "aria-label": `${g.label}: ${ar(g.tokens.length)}` }, pg);
+    if (isIn && w > 6) el("path", { d: `M0,${f1(-b0 - 6)} L0,${f1(-(b0 + L * .84))}`, class: "vein growp", style: `stroke:${deep};stroke-width:${f1(Math.max(1, w / 18))};animation-delay:${g.delay}ms` }, pg);
+    petal.addEventListener("pointerenter", e => { if (g.other) { showTip(e, `<b>${g.label}</b><br>${occ(g.tokens.length)}. اضغط لعرض ${root.kind === "root" ? "كل الصيغ" : "كل السور"} في حلقات حول الزهرة.`); hoverGroup(g); return; } showTip(e, root.kind === "word" ? `<b>${root.label}</b><br>في سورة ${g.label}: ${occ(g.tokens.length)}` : `<b>${g.label}</b><br>${occ(g.tokens.length)} في ${surahsN(new Set(g.tokens.map(p => tokSurah[p])).size)}:<div class="tl">${surahList(g.tokens)}</div>`); hoverGroup(g); });
+    petal.addEventListener("pointerleave", () => { hideTip(); highlight(); });
+    const choose = () => { if (g.other) { hideTip(); setExpanded(true); return; } pick = pick === g ? null : g; pickSurah = null; shown = 20; highlight(); renderVerses(); };
+    petal.addEventListener("click", choose); petal.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(); } });
+    if (isIn) {
+      // label just beyond the petal tip, number inside the petal (inner ring only)
+      const [lx, ly] = pt(g.t, R0 + g.len + 22); g.lr = R0 + g.len + 22;
+      const fs = small ? (outer.length ? 34 : 42) : n > 14 ? 24 : 28;
+      const tx = el("text", { x: f1(lx), y: f1(ly), class: "plabel grow", "font-size": fs, style: `animation-delay:${200 + g.delay}ms` }, gLabels);
+      tx.textContent = g.label;
+      const [nx, ny] = pt(g.t, R0 + g.len * .5), nfs = Math.max(13, Math.min(small ? 36 : 24, w * 1.05, g.len * .36));   // centred where the petal is widest
+      const ng = el("g", { class: "grow", style: `animation-delay:${150 + g.delay}ms` }, gNums);   // animate the wrapper: a CSS transform on the text itself would cancel its rotation
+      const num = el("text", { x: f1(nx), y: f1(ny), class: "pnum", "font-size": f1(nfs), style: `fill:${g.ink}` }, ng); num.textContent = ar(g.tokens.length);
+      const avail = 2 * w * .7; let f = nfs;
+      while (num.getBBox().width > avail && f > 12) { f *= .9; num.setAttribute("font-size", f1(f)); }
+      if (num.getBBox().width > avail) {
+        let dg = Math.atan2(-Math.cos(g.t), -Math.sin(g.t)) * 180 / Math.PI; if (dg > 90) dg -= 180; if (dg < -90) dg += 180;
+        num.setAttribute("font-size", f1(Math.min(nfs, w * 1.3))); num.setAttribute("transform", `rotate(${f1(dg)} ${f1(nx)} ${f1(ny)})`);
+        let fr = Math.min(nfs, w * 1.3); while (num.getBBox().width > g.len * .5 && fr > 8) { fr *= .9; num.setAttribute("font-size", f1(fr)); }   // rotated: fit the petal length
+      }
+    }
+    // threads from the petal tip to every surah where this form occurs
+    const bySur = new Map(); for (const p of g.tokens) { const s = tokSurah[p]; const o = bySur.get(s) || { n: 0, sum: 0 }; o.n++; o.sum += p; bySur.set(s, o); }
+    g.threads = [];
+    const [x0, y0] = pt(g.t, b0 + g.len * .92);
+    bySur.forEach((o, s) => {
+      const ts = tOfTok(o.sum / o.n), [x3, y3] = pt(ts, R_RING - 4), [x1, y1] = pt(g.t, Math.min(b0 + g.len + 70, R_RING - 40)), [x2, y2] = pt(ts, R_RING - 110);
+      const path = el("path", { d: `M${f1(x0)},${f1(y0)} C${f1(x1)},${f1(y1)} ${f1(x2)},${f1(y2)} ${f1(x3)},${f1(y3)}`, class: "thread draw", "stroke-width": f1(Math.min(7, .7 + Math.sqrt(o.n) * .9)), style: `animation-delay:${300 + g.delay}ms;stroke:${g.color}` }, gThreads);
+      g.threads.push([path, s]);
+    });
+  });
+  placeLabels();
+  { // final check of the small labels at their real size: if the longest one is too long for its petal, shrink all of them by the same factor
+    const ols = [...gOLabels.querySelectorAll(".olabel")];
+    if (ols.length) {
+      const lim = .8, ratio = Math.max(...ols.map(t => t.getBBox().width / groups[+t.dataset.i].len));
+      if (ratio > lim) { const k = lim / ratio * .98; ols.forEach(t => { const g = groups[+t.dataset.i]; g.font *= k; t.setAttribute("font-size", f1(g.font)); }); outerFont *= k; }
+      ols.forEach(t => { const ly = +t.getAttribute("transform").match(/rotate\([^ ]+ [^ ]+ ([^)]+)\)/)[1]; t.setAttribute("y", f1(ly)); const bb = t.getBBox(); t.setAttribute("y", f1(ly - (bb.y + bb.height / 2 - ly))); });
+    }
+  }
+  { // one size for all inner labels: the smallest that placement needed (shrinking around the centre cannot create new overlaps)
+    const tl = [...gLabels.querySelectorAll("text")]; if (tl.length) { const fmin = Math.min(...tl.map(t => +t.getAttribute("font-size"))); tl.forEach(t => t.setAttribute("font-size", f1(fmin))); } }
+  // centre
+  const ring = el("circle", { cx: C, cy: C, r: R0 - 6, "stroke-width": 2, class: "grow", style: "cursor:pointer;fill:url(#core);stroke:var(--core-2)" }, gCenter);
+  ring.addEventListener("click", () => { pick = null; pickSurah = null; shown = 20; highlight(); renderVerses(); });
+  ring.addEventListener("pointerenter", e => showTip(e, `<b>${root.label}</b><br>اضغط لعرض كل المواضع`)); ring.addEventListener("pointerleave", hideTip);
+  const seeds = el("g", { class: "seeds grow" }, gCenter), NS_ = 230, GA = Math.PI * (3 - Math.sqrt(5));
+  for (let k = 1; k <= NS_; k++) { const r = (R0 - 12) * Math.sqrt(k / NS_), a = k * GA; el("circle", { cx: f1(C + r * Math.cos(a)), cy: f1(C + r * Math.sin(a)), r: f1(1.2 + 1.8 * k / NS_), opacity: f1(.25 + .45 * k / NS_) }, seeds); }
+  // centre text: word above count, the pair centred in the disc and shrunk until both fit inside it
+  const cw = el("text", { x: C, y: C, class: "center-word grow" }, gCenter); cw.textContent = root.label;
+  const cs = el("text", { x: C, y: C, class: "center-sub grow" }, gCenter); cs.textContent = occ(root.tokens.length);
+  let fw = root.label.length > 4 ? (smallScreen() ? 38 : 32) : (smallScreen() ? 48 : 42), fsub = smallScreen() ? 23 : 16;
+  const fits = b => [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]].every(([x, y]) => Math.hypot(x - C, y - C) <= R0 - 2);
+  for (let k = 0; k < 12; k++) {
+    cw.setAttribute("font-size", f1(fw)); cs.setAttribute("font-size", f1(fsub)); cw.setAttribute("y", C); cs.setAttribute("y", C);
+    let a = cw.getBBox(), b = cs.getBBox(); const gap = 4, total = a.height + gap + b.height, top = C - total / 2;
+    cw.setAttribute("y", f1(C + (top - a.y))); a = cw.getBBox();
+    cs.setAttribute("y", f1(C + (a.y + a.height + gap - b.y))); b = cs.getBBox();
+    if (fits(a) && fits(b)) break;
+    fw *= .92; fsub *= .94;
+  }
+  // occurrence ticks on the ring
+  document.getElementById("ticks").setAttribute("d", ticksPath(root.tokens));
+}
+// petals approximated by circles along their axis, for collision tests
+function petalDiscs() {
+  const out = [];
+  groups.filter(g => g.ring === 0).forEach(g => { const w = g.w;
+    for (let k = 0; k <= 8; k++) { const s = k / 8, [x, y] = pt(g.t, R0 + s * g.len); out.push([x, y, Math.max(4, w * Math.sqrt(Math.max(0, 1 - (2 * s - 1) ** 2)))]); } });
+  out.push([C, C, R0]); return out;
+}
+const rectHitsDisc = (b, [x, y, r]) => { const dx = Math.max(b.x - x, 0, x - (b.x + b.width)), dy = Math.max(b.y - y, 0, y - (b.y + b.height)); return dx * dx + dy * dy < r * r; };
+const outsideRing = b => [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]].some(([x, y]) => Math.hypot(x - C, y - C) > LABEL_LIMIT);
+const rectsHit = (a, b, pad = 3) => a.x < b.x + b.width + pad && b.x < a.x + a.width + pad && a.y < b.y + b.height + pad && b.y < a.y + a.height + pad;
+function placeLabels() {
+  const texts = [...gLabels.querySelectorAll("text")], discs = petalDiscs(), RMAX = LABEL_LIMIT - 14;
+  const setPos = (tx, g, r) => { const [x, y] = pt(g.t, r); tx.setAttribute("x", f1(x)); tx.setAttribute("y", f1(y)); g.lr = r; };
+  for (let pass = 0; pass < 60; pass++) {
+    let moved = false;
+    texts.forEach((tx, i) => {
+      const g = groups[i], b = tx.getBBox();
+      const hit = discs.some(d => rectHitsDisc(b, d)) || texts.some((o, j) => j !== i && rectsHit(b, o.getBBox())) || outsideRing(b);
+      if (!hit) return;
+      if (g.lr + 8 <= RMAX - b.height / 2 && !outsideRing(b)) { setPos(tx, g, g.lr + 8); moved = true; }
+      else if (+tx.getAttribute("font-size") > (smallScreen() ? 34 : 15)) {             // no room further out: shrink the label and start again near the tip
+        const fs = +tx.getAttribute("font-size") * .9; tx.setAttribute("font-size", f1(fs));
+        setPos(tx, g, R0 + g.len + 22); moved = true;
+      }
+    });
+    if (!moved) break;
+  }
+  // last resort for a label still touching something: search nearby angles and radii, at a normal size
+  texts.forEach((tx, i) => {
+    const g = groups[i], clash = () => { const bb = tx.getBBox(); return discs.some(d => rectHitsDisc(bb, d)) || texts.some((o, j) => j !== i && rectsHit(bb, o.getBBox())) || outsideRing(bb); };
+    if (!clash()) return;
+    const fs = smallScreen() ? 34 : 22; tx.setAttribute("font-size", fs);
+    for (const sz of [fs, fs * .85, fs * .72]) for (const dt of [0, .06, -.06, .12, -.12, .18, -.18, .24, -.24, .3, -.3])
+      for (let r = R0 + g.len + 22; r <= RMAX; r += 10) {
+        tx.setAttribute("font-size", f1(sz));
+        const [x, y] = pt(g.t + dt, r); tx.setAttribute("x", f1(x)); tx.setAttribute("y", f1(y));
+        if (!clash()) return;
+      }
+  });
+}
+window.__labelCheck = () => {                                   // test hook: count overlaps between labels and with petals
+  const texts = [...gLabels.querySelectorAll("text")], discs = petalDiscs(); let lab = 0, pet = 0;
+  let ring = 0; texts.forEach((t, i) => { const b = t.getBBox(); if (outsideRing(b)) ring++; if (discs.some(d => rectHitsDisc(b, d))) pet++; texts.forEach((o, j) => { if (j > i && rectsHit(b, o.getBBox(), 0)) lab++; }); });
+  const cw = gCenter.querySelector(".center-word").getBBox(), cs = gCenter.querySelector(".center-sub").getBBox();
+  const inside = b => Math.hypot(Math.max(Math.abs(b.x - C), Math.abs(b.x + b.width - C)), Math.max(Math.abs(b.y - C), Math.abs(b.y + b.height - C))) <= R0 + 2;
+  return { labels: texts.length, labelOverlaps: lab, petalOverlaps: pet, ringOverlaps: ring, centreOverlap: rectsHit(cw, cs, 0) ? 1 : 0, centreOutside: (inside(cw) ? 0 : 1) + (inside(cs) ? 0 : 1) };
+};
+window.__bloom = q => run(q);
+window.__outerCheck = () => { let bad = 0; const petals = gPetals.querySelectorAll(".petal");
+  gOLabels.querySelectorAll(".olabel").forEach(t => { const pet = petals[+t.dataset.i], b = t.getBBox(), m = pet.getCTM().inverse().multiply(t.getCTM());
+    const inside = (x, y) => { const q = new DOMPoint(x, y).matrixTransform(m); return pet.isPointInFill(new DOMPoint(q.x, q.y)); };
+    if (![[b.x + 1, b.y + b.height * .3], [b.x + b.width - 1, b.y + b.height * .3], [b.x + 1, b.y + b.height * .7], [b.x + b.width - 1, b.y + b.height * .7]].every(([x, y]) => inside(x, y))) bad++; });
+  const s = svg.getBoundingClientRect().width / 1000; return { outerLabels: gOLabels.querySelectorAll(".olabel").length, outside: bad, fontPx: +(Math.min(...groups.filter(g => g.ring > 0).map(g => g.font)) * s).toFixed(1), medianPx: +((a => a[Math.floor(a.length / 2)] || 0)(groups.filter(g => g.ring > 0).map(g => g.font).sort((x, y) => x - y)) * s).toFixed(1) }; };
+window.__setExpanded = v => setExpanded(v);
+window.__demoInfo = () => { const s = svg.getBoundingClientRect().width / 1000;   // test hook: petals drawn vs distinct items, thinnest petal on screen
+  return { petals: gPetals.querySelectorAll(".petal").length, items: new Set(root.tokens.map(p => root.kind === "root" ? TF[p] : tokSurah[p])).size, minw: Math.min(...groups.map(g => 2 * g.w * s)) }; };
+window.__bloomWordQ = q => { const k = normWord(q); let best = -1; FORM_N.forEach((f, i) => { if (f === k && (best < 0 || formCount[i] > formCount[best])) best = i; }); if (best >= 0) bloomWord(best); return best >= 0 ? FORMS[best] : null; };
+function ticksPath(toks) {
+  let d = ""; for (const p of toks) { const t = tOfTok(p), [x1, y1] = pt(t, R_RING + 22), [x2, y2] = pt(t, R_RING + 34); d += `M${f1(x1)},${f1(y1)}L${f1(x2)},${f1(y2)}`; } return d;
+}
+function hoverGroup(g) {
+  groups.forEach(h => { h.threads.forEach(([p]) => { p.classList.toggle("on", h === g); p.classList.toggle("dim", h !== g); }); });
+  gPetals.querySelectorAll(".petal").forEach((p, i) => p.classList.toggle("dim", groups[i] !== g && groups[i] !== pick));
+  gNums.querySelectorAll(".pnum").forEach((t, i) => t.classList.toggle("dim", groups[i] !== g && groups[i] !== pick));
+  gOLabels.querySelectorAll(".olabel").forEach(t => { const h = groups[+t.dataset.i]; t.classList.toggle("dim", h !== g && h !== pick); });
+}
+function highlight() {
+  const petals = gPetals.querySelectorAll(".petal");
+  groups.forEach((g, i) => {
+    petals[i].classList.toggle("on", g === pick); petals[i].classList.toggle("dim", !!pick && g !== pick);
+    const nm = gNums.querySelectorAll(".pnum")[i]; if (nm) nm.classList.toggle("dim", !!pick && g !== pick);
+    const ol = gOLabels.querySelector(`.olabel[data-i="${i}"]`); if (ol) ol.classList.toggle("dim", !!pick && g !== pick);
+    g.threads.forEach(([p, s]) => {
+      const on = (pick && g === pick) || (pickSurah != null && s === pickSurah);
+      p.classList.toggle("on", !!on); p.classList.toggle("dim", (pick || pickSurah != null) && !on);
+    });
+  });
+  gRing.querySelectorAll(".arc").forEach(a => { const s = +a.dataset.s; a.classList.toggle("on", s === pickSurah); a.classList.toggle("dim", pickSurah != null && s !== pickSurah); });
+  const sel = currentTokens();
+  document.getElementById("ticksPick").setAttribute("d", pick || pickSurah != null ? ticksPath(sel) : "");
+}
+const currentTokens = () => !root ? [] : pick ? pick.tokens : pickSurah != null ? root.tokens.filter(p => tokSurah[p] === pickSurah) : root.tokens;
+
+// ---------- verses ----------
+function renderVerses() {
+  const toks = currentTokens(), hits = new Set(toks), vs = []; let last = -1;
+  for (const p of toks) { const v = verseOf(p); if (v !== last) { vs.push(v); last = v; } }
+  const t = document.getElementById("dTitle"), sub = document.getElementById("dSub");
+  document.querySelector(".drawer").style.setProperty("--pick", pick ? pick.text : "");
+  const kw = root.kind === "root" ? "الجذر" : "الكلمة";
+  if (pick) t.innerHTML = root.kind === "root" ? `<span class="w">${pick.label}</span> من الجذر «${root.label}»` : pick.other ? `«<span class="w">${root.label}</span>» في ${pick.label}` : `«<span class="w">${root.label}</span>» في سورة ${pick.label}`;
+  else if (pickSurah != null) t.innerHTML = `${kw} «<span class="w">${root.label}</span>» في سورة ${sName(pickSurah)}`;
+  else t.innerHTML = `كل مواضع ${kw} «<span class="w">${root.label}</span>»`;
+  sub.textContent = `${occ(toks.length)} في ${ayatN(vs.length)} من ${surahsN(new Set(toks.map(p => tokSurah[p])).size)}`;
+  document.getElementById("reset").textContent = root.kind === "root" ? "اعرض كل مواضع الجذر" : "اعرض كل مواضع الكلمة";
+  document.getElementById("reset").hidden = !(pick || pickSurah != null);
+  let html = "", lastS = -1;
+  for (const v of vs.slice(0, shown)) {
+    const a = VS[v], b = VS[v + 1] || N, s = tokSurah[a], r = refOf(a);
+    if (s !== lastS) { html += `<li class="sgroup">سورة ${sName(s)}</li>`; lastS = s; }
+    let im = "", ut = "", txt = UV[v], i = 0;
+    for (let p = a; p < b; p++) {
+      const w = FORMS[TF[p]], sep = p < b - 1 && !NOSPACE.has(TF[p]) ? " " : "";
+      im += (hits.has(p) ? `<mark data-p="${p}">${w}</mark>` : w) + sep;
+      if (hits.has(p) && UA[p] >= i) { ut += txt.slice(i, UA[p]) + `<mark data-p="${p}">${txt.slice(UA[p], UB[p])}</mark>`; i = UB[p]; }
+    }
+    ut += txt.slice(i);
+    html += `<li class="verse"><span class="ref">الآية ${ar(r.ayah)} | الصفحة ${ar(r.page)} | الجزء ${ar(r.juz)}</span>` +
+      (textMode !== "uth" ? `<div class="txt">${im}</div>` : "") + (textMode !== "imlai" ? `<div class="txt uth${textMode === "both" ? " pair" : ""}">${ut}</div>` : "") + `</li>`;
+  }
+  document.getElementById("verses").innerHTML = html;
+  const more = document.getElementById("more"); more.hidden = shown >= vs.length; more.textContent = `اعرض المزيد (${ar(Math.min(20, vs.length - shown))} آية)`;
+}
+document.getElementById("more").onclick = () => { shown += 20; renderVerses(); };
+document.getElementById("reset").onclick = () => { pick = null; pickSurah = null; shown = 20; highlight(); renderVerses(); };
+const TM = { imlai: "tImlai", uth: "tUth", both: "tBoth" };
+for (const [m, id] of Object.entries(TM)) document.getElementById(id).onclick = () => { textMode = m; for (const [k, i] of Object.entries(TM)) document.getElementById(i).setAttribute("aria-pressed", k === m); renderVerses(); };
+
+// ---------- tooltip and word card ----------
+const tip = document.getElementById("tip"), card = document.getElementById("card");
+function placeAt(box, x, y) { box.hidden = false; const w = box.offsetWidth, h = box.offsetHeight; let top = y - h - 14; if (top < 8) top = y + 18; box.style.left = Math.max(8, Math.min(innerWidth - w - 8, x - w / 2)) + "px"; box.style.top = Math.min(innerHeight - h - 8, top) + "px"; }
+function showTip(e, html) { tip.innerHTML = html; placeAt(tip, e.clientX, e.clientY); }
+const hideTip = () => { tip.hidden = true; }, hideCard = () => { card.hidden = true; };
+function cardFor(p) {
+  const r = refOf(p), v = r.v, len = (VS[v + 1] || N) - VS[v], f = TF[p], rt = TR[p];
+  return `<div class="words"><span class="w1">${FORMS[f]}</span><span style="color:var(--muted)">|</span><span class="w2">${uWord(p)}</span></div>
+    <dl><dt>الجذر</dt><dd>${ROOTS[rt]} | عدد مواضعه: ${ar(rootFreq[rt])} | عدد صيغه: ${ar(rootForms.get(rt).size)}</dd>
+    <dt>تكرار الكلمة</dt><dd>${ar(formCount[f])} | هذا الموضع رقم ${ar(occRank[p])}</dd>
+    <dt>السورة</dt><dd>${sName(r.s)} (${ar(r.s + 1)}) | ${SUR[r.s][1] === "m" ? "مكية" : "مدنية"}</dd>
+    <dt>الموضع</dt><dd>الآية ${ar(r.ayah)} | الصفحة ${ar(r.page)} | الجزء ${ar(r.juz)}</dd>
+    <dt>ترتيب الكلمة</dt><dd>${ar(p - VS[v] + 1)} من ${ar(len)} في الآية | ${ar(p + 1)} في القرآن</dd>
+    <dt>أول حرف</dt><dd>${firstLetter(FORMS[f])}</dd></dl>`;
+}
+const vlist = document.getElementById("verses");
+const openCard = m => { card.innerHTML = cardFor(+m.dataset.p); const r = m.getBoundingClientRect(); placeAt(card, (r.left + r.right) / 2, r.top); };
+vlist.addEventListener("mouseover", e => { const m = e.target.closest("mark[data-p]"); if (m) openCard(m); });
+vlist.addEventListener("mouseout", e => { if (e.target.closest("mark[data-p]")) hideCard(); });
+vlist.addEventListener("click", e => { const m = e.target.closest("mark[data-p]"); if (m) { e.stopPropagation(); openCard(m); } });
+document.addEventListener("click", hideCard);
+addEventListener("scroll", () => { hideCard(); hideTip(); }, { passive: true });
+svg.addEventListener("pointerdown", e => { if (e.pointerType !== "mouse") setTimeout(hideTip, 1600); });
+
+// ---------- search ----------
+let mode = "root";
+function wordForms(q) {
+  const k = normWord(q), bare = k.replace(/^ال/, ""), forms = new Set();
+  FORM_N.forEach((f, i) => { if (PREFIXES.some(px => f === px + k || f === px + bare)) forms.add(i); });
+  if (!forms.size) FORM_N.forEach((f, i) => { if (f.includes(k)) forms.add(i); });
+  // typed with diacritics (الجَنَّة / الجِنَّة): keep only the forms whose vowels agree
+  if (/[\u064B-\u0650\u0651]/.test(q)) {
+    const skel = s => s.replace(/[أإآٱ]/g, "ا").split("").reduce((o, ch, i, a) => ch === "\u0652" ? o : o + ch, "").replace(/(.)([\u064B-\u0651]+)/g, (m, l, mk) => l + [...mk].sort().join(""));
+    const want = skel(q.trim()).replace(/[\u064B-\u0650]$/, "");
+    for (const i of [...forms]) if (!skel(FORMS[i]).includes(want)) forms.delete(i);
+  }
+  return forms;
+}
+function run(q) {
+  expanded = false;
+  q = (q || "").trim(); const msg = document.getElementById("msg");
+  if (!q) { msg.className = "msg err"; msg.textContent = mode === "root" ? "اكتب جذرًا أولًا." : "اكتب كلمة أولًا."; return; }
+  document.getElementById("q").value = q;
+  if (mode === "word") {
+    // exact word of the table, diacritics included; without diacritics only an unambiguous spelling is accepted
+    let ids = FORMS.map((f, i) => i).filter(i => FORM_C[i] === canon(q));
+    if (!ids.length && !/[\u064B-\u0652]/.test(q)) { const k = normWord(q); ids = FORMS.map((f, i) => i).filter(i => FORM_N[i] === k); }
+    if (ids.length === 1) { msg.className = "msg"; msg.textContent = ""; bloomWord(ids[0]); return; }
+    msg.className = ids.length ? "msg" : "msg err";
+    msg.textContent = ids.length ? `للكلمة «${q}» ${ar(ids.length)} صيغ بحركات مختلفة. اختر الصيغة المطلوبة من القائمة.` : `لم نجد «${q}» بهذه الحروف. اختر الكلمة من القائمة.`;
+    browse = false; renderSug(); qEl.focus(); return;
+  }
+  const rids = ROOT_N.get(normRoot(q));
+  if (rids) { msg.className = "msg"; msg.textContent = ""; bloom(rids[0]); return; }
+  const forms = wordForms(q);
+  if (!forms.size) { msg.className = "msg err"; msg.textContent = `لم نجد الجذر «${q}». اكتبه بحروفه الأصلية بلا حركات أو اختره من القائمة.`; return; }
+  const rc = new Map(); for (let i = 0; i < N; i++) if (forms.has(TF[i])) rc.set(TR[i], (rc.get(TR[i]) || 0) + 1);
+  const rid = [...rc].sort((a, b) => b[1] - a[1])[0][0];
+  msg.className = "msg"; msg.textContent = `«${q}» ليس جذرًا، فعرضنا جذره «${ROOTS[rid]}». لعرض كلمة بعينها اختر «كلمة».`;
+  bloom(rid, forms);
+}
+document.getElementById("form").addEventListener("submit", e => { e.preventDefault(); run(document.getElementById("q").value); });
+const TRY = { root: ["ءتي", "علم", "قول", "رحم", "صبر", "قلب"],
+  word: ["السماء", "الأرض", "الجنة", "قلوبهم", "الكتاب", "الصبر"].map(w => { const k = normWord(w); let best = -1; FORM_N.forEach((f, i) => { if (f === k && (best < 0 || formCount[i] > formCount[best])) best = i; }); return best; }).filter(i => i >= 0) };
+function setMode(m, rerun) {
+  mode = m; document.getElementById("mRoot").setAttribute("aria-pressed", m === "root"); document.getElementById("mWord").setAttribute("aria-pressed", m === "word");
+  const q = document.getElementById("q");
+  q.placeholder = m === "root" ? "اكتب جذرًا أو اختره من القائمة" : "اكتب كلمة أو اخترها من القائمة"; letter = null; closeSug();
+  document.getElementById("tries").innerHTML = TRY[m].map(t => `<button type="button" ${m === "word" ? `data-fid="${t}"` : ""}>${m === "word" ? FORMS[t] : t}</button>`).join("");
+  document.querySelectorAll("#tries button").forEach(b => b.onclick = () => { closeSug(); if (b.dataset.fid) { qEl.value = b.textContent; document.getElementById("msg").textContent = ""; expanded = false; bloomWord(+b.dataset.fid); } else run(b.textContent); });
+  if (rerun && q.value.trim()) run(q.value);
+}
+// ---------- dropdown with completion ----------
+const qEl = document.getElementById("q"), sug = document.getElementById("suggest"), sugList = document.getElementById("sugList"), sugNote = document.getElementById("sugNote"), lettersEl = document.getElementById("letters");
+const LETTERS = "ء ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي".split(" ");
+const firstOf = it => { const k = mode === "root" ? it.key : it.key.replace(/^ال(?=..)/, ""); return k[0] === "ا" && mode === "root" ? "ا" : k[0]; };
+let letter = null, shownItems = [], active = -1, browse = false;   // browse: show the whole list, ignoring the text in the box
+const LIMIT = 250;
+function matches() {
+  const items = mode === "root" ? ROOT_ITEMS : WORD_ITEMS, raw = browse ? "" : qEl.value.trim();
+  const k = raw ? (mode === "root" ? normRoot(raw) : normWord(raw)) : "", withMarks = mode === "word" && /[\u064B-\u0652]/.test(raw);
+  let list;
+  if (k) {                                                   // words that start with what was typed first, then words that contain it
+    const starts = [], has = [];
+    for (const it of items) { if (it.key.startsWith(k) || (mode === "word" && it.key.replace(/^ال/, "").startsWith(k))) starts.push(it); else if (it.key.includes(k)) has.push(it); }
+    list = starts.concat(has);
+    if (withMarks) { const c = canon(raw); list = list.filter(it => FORM_C[it.fid].includes(c)); }   // typed with diacritics: keep the words whose vowels agree
+  } else list = letter ? items.filter(it => firstOf(it) === letter || (letter === "ا" && /^[اأإآ]/.test(firstOf(it)))) : items;
+  return { list, k };
+}
+function renderSug() {
+  const { list, k } = matches();
+  lettersEl.innerHTML = LETTERS.map(l => `<button type="button" data-l="${l}" aria-pressed="${letter === l && !k}">${l}</button>`).join("");
+  lettersEl.querySelectorAll("button").forEach(b => b.onclick = e => { e.preventDefault(); letter = letter === b.dataset.l ? null : b.dataset.l; browse = true; active = -1; renderSug(); });
+  shownItems = list.slice(0, LIMIT);
+  const hl = s => { if (!k || mode === "word") return s; const i = (mode === "root" ? normRoot(s) : normWord(s)).indexOf(k); return i < 0 ? s : s.slice(0, i) + "<b>" + s.slice(i, i + k.length) + "</b>" + s.slice(i + k.length); };
+  sugList.innerHTML = shownItems.map((it, i) => `<li role="option" id="opt${i}" data-i="${i}" aria-selected="${i === active}"><span class="lb">${hl(it.label)}</span><span class="ct">${ar(it.n)}</span></li>`).join("");
+  sugNote.textContent = !list.length ? (mode === "root" ? "لا يوجد جذر بهذه الحروف." : "لا توجد كلمة بهذه الحروف.")
+    : list.length > LIMIT ? `تظهر أول ${ar(LIMIT)} من ${ar(list.length)}. اكتب حروفًا أكثر أو اختر حرفًا لتضييق القائمة.`
+    : `عدد ${mode === "root" ? "الجذور" : "الكلمات"}: ${ar(list.length)}، مرتبة أبجديًا. الرقم بجانب كل منها عدد مواضعه.`;
+  sug.hidden = false; qEl.setAttribute("aria-expanded", "true");
+}
+function closeSug() { sug.hidden = true; qEl.setAttribute("aria-expanded", "false"); active = -1; }
+function choose(i) {
+  const it = shownItems[i]; if (!it) return; qEl.value = it.label; closeSug();
+  if (mode === "word") { document.getElementById("msg").textContent = ""; expanded = false; bloomWord(it.fid); } else run(it.label);
+}
+sugList.addEventListener("mousedown", e => e.preventDefault());           // keep focus in the input
+sugList.addEventListener("click", e => { const li = e.target.closest("li[data-i]"); if (li) choose(+li.dataset.i); });
+lettersEl.addEventListener("mousedown", e => e.preventDefault());
+qEl.addEventListener("input", () => { letter = null; active = -1; browse = false; renderSug(); });
+qEl.addEventListener("focus", () => { browse = !!root && qEl.value.trim() === root.label; renderSug(); });
+qEl.addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault(); if (sug.hidden) renderSug();
+    active = Math.max(0, Math.min(shownItems.length - 1, active + (e.key === "ArrowDown" ? 1 : -1)));
+    sugList.querySelectorAll("li").forEach((li, i) => li.setAttribute("aria-selected", i === active));
+    const li = document.getElementById("opt" + active); if (li) { li.scrollIntoView({ block: "nearest" }); qEl.setAttribute("aria-activedescendant", li.id); }
+  } else if (e.key === "Enter" && !sug.hidden && active >= 0) { e.preventDefault(); choose(active); }
+  else if (e.key === "Escape") closeSug();
+});
+document.getElementById("openList").onclick = () => { if (sug.hidden) { browse = true; letter = null; renderSug(); } else closeSug(); };
+document.addEventListener("pointerdown", e => { if (!e.target.closest("#form")) closeSug(); });
+document.getElementById("form").addEventListener("submit", () => closeSug(), true);
+document.getElementById("mRoot").onclick = () => setMode("root", true);
+document.getElementById("mWord").onclick = () => setMode("word", true);
+setMode("root", false);
+document.getElementById("foot").textContent = `البيانات: ${ar(N)} كلمة في ${ar(NV)} آية و${ar(SUR.length)} سورة. تُعدّ «وَ» كلمة مستقلة. الرسم العثماني من مجمع الملك فهد لطباعة المصحف الشريف.`;
+let lastCap = null;
+function setExpanded(v) { expanded = v; pick = null; pickSurah = null; shown = 20; reBloom(); }
+document.getElementById("fold").onclick = () => setExpanded(false);
+const reBloom = () => { if (!root) return; if (root.kind === "root") bloom(root.id, pick && !pick.other ? new Set(pick.forms.keys()) : null); else bloomWord(root.fid, pick && !pick.other ? pick.key : null); };
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reBloom);
+new MutationObserver(reBloom).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+new ResizeObserver(() => { const c = maxPetals(); if (root && c !== lastCap) { lastCap = c; reBloom(); } }).observe(svg);
+drawRing(); document.getElementById("q").value = "ءتي"; run("ءتي"); lastCap = maxPetals();
+})();
+</script>

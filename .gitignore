@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+# Excel lock files while the workbook is open
+~$*.xlsx
+# Python
+__pycache__/
+*.pyc
+.venv/
+# build output and test screenshots (the app itself is tracked)
+build/
